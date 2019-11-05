@@ -23,13 +23,14 @@ import time
 import serial
 import sys
 import platform
+import socket
 
 LATENCY_TIMER = 16
 DEFAULT_BAUDRATE = 1000000
 
 
 class PortHandler(object):
-    def __init__(self, port_name):
+    def __init__(self, port_name, port):
         self.is_open = False
         self.baudrate = DEFAULT_BAUDRATE
         self.packet_start_time = 0.0
@@ -37,18 +38,21 @@ class PortHandler(object):
         self.tx_time_per_byte = 0.0
 
         self.is_using = False
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.port_name = port_name
-        self.ser = None
+        self.port = port
 
     def openPort(self):
-        return self.setBaudRate(self.baudrate)
+        self.socket.connect((self.port_name,self.port))
+        self.is_open = True
+        return True
 
     def closePort(self):
-        self.ser.close()
+        self.socket.close()
         self.is_open = False
 
     def clearPort(self):
-        self.ser.flush()
+        pass
 
     def setPortName(self, port_name):
         self.port_name = port_name
@@ -57,30 +61,20 @@ class PortHandler(object):
         return self.port_name
 
     def setBaudRate(self, baudrate):
-        baud = self.getCFlagBaud(baudrate)
-
-        if baud <= 0:
-            # self.setupPort(38400)
-            # self.baudrate = baudrate
-            return False  # TODO: setCustomBaudrate(baudrate)
-        else:
-            self.baudrate = baudrate
-            return self.setupPort(baud)
+        self.baudrate = baudrate
+        return True
 
     def getBaudRate(self):
         return self.baudrate
 
-    def getBytesAvailable(self):
-        return self.ser.in_waiting
+    # def getBytesAvailable(self):
+    #     return self.ser.in_waiting
 
     def readPort(self, length):
-        if (sys.version_info > (3, 0)):
-            return self.ser.read(length)
-        else:
-            return [ord(ch) for ch in self.ser.read(length)]
+        return self.socket.recv(length)
 
     def writePort(self, packet):
-        return self.ser.write(packet)
+        return self.socket.send(bytes(packet))
 
     def setPacketTimeout(self, packet_length):
         self.packet_start_time = self.getCurrentTime()
@@ -111,18 +105,9 @@ class PortHandler(object):
         if self.is_open:
             self.closePort()
 
-        self.ser = serial.Serial(
-            port=self.port_name,
-            baudrate=self.baudrate,
-            # parity = serial.PARITY_ODD,
-            # stopbits = serial.STOPBITS_TWO,
-            bytesize=serial.EIGHTBITS,
-            timeout=0
-        )
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.is_open = True
-
-        self.ser.reset_input_buffer()
 
         self.tx_time_per_byte = (1000.0 / self.baudrate) * 10.0
 
