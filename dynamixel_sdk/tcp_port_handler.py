@@ -26,7 +26,7 @@ import socket
 
 LATENCY_TIMER = 16
 
-SOCKET_TIMEOUT    = 0.001
+SOCKET_TIMEOUT    = .100
 
 
 class TCPPortHandler(object):
@@ -41,6 +41,7 @@ class TCPPortHandler(object):
 
 
     def openPort(self):
+        print("Opening ",self.port)
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(SOCKET_TIMEOUT)
