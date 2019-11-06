@@ -28,7 +28,8 @@ if os.name == 'nt':
 #             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 #         return ch
 
-from dynamixel_sdk import *                    # Uses Dynamixel SDK library
+from dynamixel_sdk import PacketHandler,TCPPortHandler,COMM_SUCCESS  # Uses Dynamixel SDK library
+import ServoConfig
 
 # Control table address for Dynamixel MX
 ADDR_XL320_TORQUE_ENABLE       = 24               # Control table address is different in Dynamixel model
@@ -49,7 +50,7 @@ PROTOCOL_VERSION               = 2.0
 
 # Default setting
 BAUDRATE                    = 1000000             # Dynamixel default baudrate : 57600
-DEFAULTPORT                 = 'COM4'    # Check which port is being used on your controller
+DEFAULTPORT                 = '192.168.30.158'    # Check which port is being used on your controller
                                                 # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
 
 TORQUE_ENABLE               = 1               # Value for enabling the torque
@@ -69,54 +70,14 @@ SERVO_STATUS = {
 
 }
 
-SERVO_LIST = {
-    'Petal1':{
-        'ID': 1,
-        'StartPos':0,
-        'EndPos':90,
-        'Speed':100,
-        'Positions':{'Drop':90},
-    },
-    'Petal2':{
-        'ID': 2,
-        'StartPos':0,
-        'EndPos':90,
-        'Speed':100,
-        'Positions':{'Drop':90},
-    },
-    'Petal3':{
-        'ID': 3,
-        'StartPos':0,
-        'EndPos':90,
-        'Speed':100,
-        'Positions':{'Drop':90},
-    },
-    'Petal4':{
-        'ID': 4,
-        'StartPos':0,
-        'EndPos':90,
-        'Speed':100,
-        'Positions':{'Drop':90},
-    },
-    'Petal5':{
-        'ID': 5,
-        'StartPos':0,
-        'EndPos':90,
-        'Speed':100,
-        'Positions':{'Drop':90},
-    }
-
-}
-
 
 
 class Servo:
-    def __init__(self,port = DEFAULTPORT,baud = BAUDRATE):
-        self.baudrate = baud
+    def __init__(self,port = ServoConfig.PORT):
         self.port = port
         self.packetHandler = PacketHandler(PROTOCOL_VERSION)
         self.portHandler = None
-        self.servoList = SERVO_LIST
+        self.servoList = ServoConfig.SERVO_LIST
 
     def isConnected(self):
         if(self.portHandler and self.portHandler.is_open):
@@ -124,26 +85,9 @@ class Servo:
         else:
             return False
 
-    def setPort(self,port):
-        self.port = port
-        if not self.portHandler:
-            self.openServoPort()
-        else:
-            if self.portHandler.is_open :
-                self.portHandler.closePort()
-            self.portHandler.setPortName(self.port)
-            try:
-                self.portHandler.openPort()
-            except:
-                self.portHandler.closePort()
-        pass
-
     def openServoPort(self):
-        try:
-            self.portHandler = PortHandler(self.port)
-            self.portHandler.setBaudRate(BAUDRATE)
-        except:
-            self.portHandler.closePort()
+        self.portHandler = TCPPortHandler(self.port)
+        self.portHandler.openPort()
     
     def closeServoPort(self):
         if(self.portHandler):

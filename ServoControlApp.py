@@ -42,7 +42,7 @@ class mainFrame(servoControlFrame):
             row += 1
 
     def onTick(self, event):
-        self.updateServos()
+        # self.updateServos()
         pass
     
     def onTglBtnOpenPorts(self, event):  # wxGlade: servoControlFrame.<event_handler>

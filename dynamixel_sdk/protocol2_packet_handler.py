@@ -383,7 +383,7 @@ class Protocol2PacketHandler(object):
         txpacket = [0] * 10
         rxpacket = []
 
-        tx_time_per_byte = (1000.0 / port.getBaudRate()) *10.0;
+        tx_time_per_byte = (1000.0 / port.getBaudRate()) *10.0
 
         txpacket[PKT_ID] = BROADCAST_ID
         txpacket[PKT_LENGTH_L] = 3
@@ -397,7 +397,7 @@ class Protocol2PacketHandler(object):
 
         # set rx timeout
         #port.setPacketTimeout(wait_length * 1)
-        port.setPacketTimeoutMillis((wait_length * tx_time_per_byte) + (3.0 * MAX_ID) + 16.0);
+        port.setPacketTimeoutMillis((wait_length * tx_time_per_byte) + (3.0 * MAX_ID) + 16.0)
 
         while True:
             rxpacket += port.readPort(wait_length - rx_length)
