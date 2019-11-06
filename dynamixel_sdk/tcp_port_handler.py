@@ -48,7 +48,7 @@ class TCPPortHandler(object):
             self.is_open = True
             return True
         except Exception as e:
-            print (e)
+            print ("Port Open Failed with Exception: %s"%(e))
             del self.socket
             self.socket = None
             self.is_open = False

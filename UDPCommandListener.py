@@ -19,6 +19,7 @@ class UDPDataHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         data = self.request[0].strip()
+        print(data)
         self.queue.put(data)
 
 # For Testing

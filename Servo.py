@@ -94,12 +94,16 @@ class Servo:
             self.portHandler.closePort()
 
     def ping(self,servoName):
-        return self.packetHandler.ping(self.portHandler,self.servoList[servoName]['ID'])
+        if self.isConnected():
+            return self.packetHandler.ping(self.portHandler,self.servoList[servoName]['ID'])
+        else:
+            return -1
 
     def pingAll(self):
         pass
 
     def getStatus(self,servoName):
+        if not self.isConnected(): return -1
         isHardwareError , comm_result, dxl_error = self.packetHandler.read1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_HARDWARE_ERROR_STAT)
         if( comm_result != COMM_SUCCESS):
             return "Com Fail"
@@ -118,14 +122,16 @@ class Servo:
         return "READY"
 
     def getPosition(self,servoName):
+        if not self.isConnected(): return -1
         position, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_PRESENT_POSITION)
-        posDeg = round(position * (MAX_POSITION_DEG/MAXIMUM_POSITION_VALUE),1)
+        # posDeg = round(position * (MAX_POSITION_DEG/MAXIMUM_POSITION_VALUE),1)
         if(comm_result == COMM_SUCCESS):
-            return posDeg
+            return position
         else:
             return -1
 
     def getTorque(self,servoName):
+        if not self.isConnected(): return -1
         torque, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE)
         if(comm_result == COMM_SUCCESS):
             return torque
@@ -133,6 +139,7 @@ class Servo:
             return -1
 
     def getVoltage(self,servoName):
+        if not self.isConnected(): return -1
         voltage, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_VOLTAGE)
         if(comm_result == COMM_SUCCESS):
             return voltage/100
@@ -140,6 +147,7 @@ class Servo:
             return -1
 
     def getTemp(self,servoName):
+        if not self.isConnected(): return -1
         temp, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TEMP)
         if(comm_result == COMM_SUCCESS):
             return temp
@@ -155,22 +163,25 @@ class Servo:
         return False
 
     def enableServo(self,servoName):
+        if not self.isConnected(): return -1
         return self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_ENABLE,1)
 
     def setSpeed(self,servoName,Speed):
+        if not self.isConnected(): return -1
         speed = int(Speed)
         if(speed < 0 or speed > 1023) : speed = 0
         return self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_MOVING_SPEED,speed)
 
     def setPosition(self,servoName,Position):
-        if(Position < MIN_POSITION_DEG): Position = MIN_POSITION_DEG
-        if(Position > MAX_POSITION_DEG): Position = MAX_POSITION_DEG
-        pos = round(Position * MAXIMUM_POSITION_VALUE / MAX_POSITION_DEG)
-        print("Moving Servo %s to Position %d°(%d)"%(servoName,Position,pos))
-        return self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_GOAL_POSITION,pos)
+        if not self.isConnected(): return -1
+        if(Position < MIN_POSITION_VALUE): Position = MIN_POSITION_VALUE
+        if(Position > MAX_POSITION_VALUE): Position = MAX_POSITION_VALUE
+        # pos = round(Position * MAXIMUM_POSITION_VALUE / MAX_POSITION_DEG)
+        print("Moving Servo %s to Position %d°(%d)"%(servoName,Position,Position))
+        return self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_GOAL_POSITION,Position)
 
-MINIMUM_POSITION_VALUE      = 0               # Dynamixel will rotate between this value
-MAXIMUM_POSITION_VALUE      = 1023            # and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
+MIN_POSITION_VALUE      = 0               # Dynamixel will rotate between this value
+MAX_POSITION_VALUE      = 1023            # and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
 MIN_POSITION_DEG            = 0
 MAX_POSITION_DEG            = 300
 

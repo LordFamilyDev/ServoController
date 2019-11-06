@@ -397,7 +397,7 @@ class Protocol2PacketHandler(object):
 
         # set rx timeout
         #port.setPacketTimeout(wait_length * 1)
-        port.setPacketTimeoutMillis((wait_length * tx_time_per_byte) + (3.0 * MAX_ID) + 16.0)
+        port.setPacketTimeoutMillis((wait_length * tx_time_per_byte) + (3.0 * MAX_ID) + 16.0 + 50.0 )#added 50ms of network lag
 
         while True:
             rxpacket += port.readPort(wait_length - rx_length)
