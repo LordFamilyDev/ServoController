@@ -2,6 +2,7 @@ import wx
 import gettext
 import threading
 import queue
+import time
 
 from dynamixel_sdk import robotis_def
 from servoControlAppGUI import servoControlFrame
@@ -11,6 +12,8 @@ from UDPCommandListener import UDPServerThread, UDPDataHandler
 import ServoConfig
 
 NUM_RETRIES = 3
+GOAL_ERROR = 20
+RESET_DLY = 20
 
 class mainFrame(servoControlFrame):
     __gridColName = 0
@@ -32,7 +35,12 @@ class mainFrame(servoControlFrame):
         self.Bind(wx.EVT_TIMER,self.onTick,self.timer)
         self.timer.Start(100)
 
+        self.resetFlag = False
+        self.servoResetting = 0
+        self.resetCount = RESET_DLY 
+
         self.servoUpdateRow = 0
+        self.movingList = []
 
         self.cmdQ = queue.Queue()
         self.server = UDPServerThread(ServoConfig.UDPPort, UDPDataHandler, queue=self.cmdQ)
@@ -63,21 +71,54 @@ class mainFrame(servoControlFrame):
             except:
                 pass
             self.parseCmd(cmd)
-
+        self.updateMovers()
         self.updateServo(self.servoGrid.GetCellValue(self.servoUpdateRow,self.__gridColName))
+        if(self.resetFlag):
+            self.resetServos()
         self.servoUpdateRow += 1
         if(self.servoUpdateRow >= len(self.servoCtrl.servoList)): self.servoUpdateRow = 0
         pass
     
+    def updateMovers(self):
+        for servo in self.movingList:
+            goal = self.servoCtrl.getGoalPosition(servo)
+            pos = self.servoCtrl.getPosition(servo)
+            if(goal-pos) < GOAL_ERROR:
+                self.movingList.remove(servo)
+                self.txtLog.AppendText("\nServo %s Motion Complete"%(servo))
+
     def parseCmd(self,cmd):
         print("Got:" + str(cmd))
-        cmds = cmd.decode("utf-8").split("\n")
+        cmds = cmd.decode("utf-8").split("\n}")
         for c in cmds:
             c = c.strip(" 	{}")
             args = c.split(":")
+
+            if(len(args) < 1): 
+                print("no commands found")
+                return
+
+            if(args[0] == "Connect"):
+                self.openPort()
+                continue
+
+            if(args[0] == "Enable"):
+                self.enableServos()
+                continue
+            
+            if(args[0] == "Disable"):
+                self.disableServos()
+                continue
+            
+            if(args[0] == "Reset"):
+                self.txtLog.SetValue("Reseting Servo Positions...")
+                self.resetFlag = True
+                continue
+
             if(len(args) < 2): 
                 print("no commands found")
                 return
+
             servo = args[0]
             if not servo in self.servoCtrl.servoList:
                 print ("servo %s not found"%(servo))
@@ -96,23 +137,34 @@ class mainFrame(servoControlFrame):
                 except:
                     print("Could not parse Position")
                     return
-            print("Setting %s to Speed: %u, and Pos %u"%(servo,speed,position))
+            self.txtLog.SetValue("Moving %s to %s"%(servo,args[1]))
             self.servoCtrl.setSpeed(servo,speed)
             self.servoCtrl.setPosition(servo,position)
+            self.movingList.append(servo)
 
 
 
 
-    def onTglBtnOpenPorts(self, event):  # wxGlade: servoControlFrame.<event_handler>
-        if(not self.tglbtnOpenPorts.GetValue()):
-            print("Closing Com Ports")
-            self.servoCtrl.closeServoPort()
-            self.tglbtnOpenPorts.Label = "Open Ports"
-        else:
-            print("Opening Com Ports")
+    def onBtnOpenPorts(self, event):  # wxGlade: servoControlFrame.<event_handler>
+        print("Opening Com Ports")
+        self.openPort()
+
+    def openPort(self):
+        self.txtLog.SetValue("Connecting to Servo Control")
+        retries = 0
+        while True:
+            retries += 1
             self.servoCtrl.openServoPort()
-            self.updateServos()
-            self.tglbtnOpenPorts.Label = "Close Ports"
+            if(self.servoCtrl.isConnected() or retries >= NUM_RETRIES):
+                break
+            time.sleep(1)
+        if(not self.servoCtrl.isConnected()):
+            self.txtLog.SetValue("Could not Connect to Servo Controller")
+            return
+        self.enableServos()
+        self.updateServos()
+        self.txtLog.SetValue("Servos connected Sucesfully!")
+        
 
     def onClickFindServos(self, event):  # wxGlade: servoControlFrame.<event_handler>
         self.updateServos()
@@ -160,15 +212,85 @@ class mainFrame(servoControlFrame):
 
     def enableServos(self):
         print("Enabling Servo's")
+        eCount = 0
         s = self.servoCtrl
         for servo in s.servoList:
-            result, error = s.enableServo(servo )
+            retries = 0
+            while True:
+                retries += 1
+                s.enableServo(servo )
+                if('Torque' in s.servoList[servo]):
+                    s.setTorque(servo,s.servoList[servo]['Torque'])
+                if('PGain' in s.servoList[servo]):
+                    s.setPGain(servo,s.servoList[servo]['PGain'])
+                if('IGain' in s.servoList[servo]):
+                    s.setIGain(servo,s.servoList[servo]['IGain'])
+                if('DGain' in s.servoList[servo]):
+                    s.setPGain(servo,s.servoList[servo]['DGain'])
+                if('Punch' in s.servoList[servo]):
+                    s.setPunch(servo,s.servoList[servo]['Punch'])
+
+                if(s.isEnabled(servo)==1):
+                    break
+                if(retries >= NUM_RETRIES):
+                    eCount +=1
+                    self.txtLog.AppendText("\nServo %s not responding"%(servo))
+                    break
+        if(not eCount):
+            self.txtLog.SetValue("Servo's Enabled Successfully")
+            
+        self.updateServos()
+    
+    def onClickDisableServos(self,event):
+        self.disableServos()
+
+    def disableServos(self):
+        self.txtLog.SetValue("Disabling Servo's")
+        eCount = 0
+        s = self.servoCtrl
+        for servo in s.servoList:
+            retries = 0
+            while True:
+                retries += 1
+                s.disableServo(servo )
+
+                if(not s.isEnabled(servo)):
+                    break
+
+                if(retries >= NUM_RETRIES):
+                    eCount +=1
+                    self.txtLog.AppendText("\nServo %s not responding"%(servo))
+                    break
+        if(not eCount):
+            self.txtLog.SetValue("Servo's Enabled Successfully")
         self.updateServos()
 
 
+
     def onClickResetServos(self, event):  # wxGlade: servoControlFrame.<event_handler>
-        print("Event handler 'onClickResetServos' not implemented!")
-        event.Skip()
+        self.txtLog.SetValue("Reseting Servo Positions...")
+        self.resetFlag = True
+
+    def resetServos(self):
+        if(self.resetCount < RESET_DLY):
+            self.resetCount += 1
+            return
+        if(self.servoResetting >= len(self.servoCtrl.servoList)): 
+            self.txtLog.AppendText("\nAll Servos Reset")
+            self.servoResetting = 0
+            self.resetCount = RESET_DLY
+            self.resetFlag = False
+            return
+
+        self.resetCount = 0
+        servo = self.servoGrid.GetCellValue(self.servoResetting,self.__gridColName)
+        self.resetFlag = True
+        s = self.servoCtrl
+        self.txtLog.AppendText("\nResetting Servo %s"%(servo))
+        s.setPosition(servo,s.servoList[servo]['StartPos'])
+        self.movingList.append(servo)
+        self.servoResetting += 1
+        pass
 
     def onServoSelect(self, event):  # wxGlade: servoControlFrame.<event_handler>
         row = event.GetRow()
@@ -184,6 +306,7 @@ class mainFrame(servoControlFrame):
         if(servoName in self.servoCtrl.servoList):
             self.servoCtrl.setSpeed(servoName,speed)
             self.servoCtrl.setPosition(servoName,goalPos)
+            self.movingList.append(servoName)
         self.updateServos()
         
 
@@ -194,6 +317,7 @@ class mainFrame(servoControlFrame):
         if(servoName in self.servoCtrl.servoList):
             self.servoCtrl.setSpeed(servoName,speed)
             self.servoCtrl.setPosition(servoName,goalPos)
+            self.movingList.append(servoName)
         self.updateServos()
 
     def onBtnGoEnd(self, event):  # wxGlade: servoControlFrame.<event_handler>
@@ -204,6 +328,16 @@ class mainFrame(servoControlFrame):
             self.servoCtrl.setSpeed(servoName,speed)
             self.servoCtrl.setPosition(servoName,goalPos)
         self.updateServos()
+
+    def onBtnEnableServo(self,event):
+        servoName = self.txtServoName.GetValue()
+        self.servoCtrl.enableServo(servoName)
+
+
+    def onBtnDisableServo(self,event):
+        servoName = self.txtServoName.GetValue()
+        self.servoCtrl.disableServo(servoName)
+
 
     def onClose(self, event):  # wxGlade: servoControlFrame.<event_handler>
         self.servoCtrl.closeServoPort()

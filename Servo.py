@@ -33,6 +33,11 @@ import ServoConfig
 
 # Control table address for Dynamixel MX
 ADDR_XL320_TORQUE_ENABLE       = 24               # Control table address is different in Dynamixel model
+ADDR_XL320_TORQUE_LIMIT        = 35
+ADDR_XL320_P_GAIN              = 29
+ADDR_XL320_I_GAIN              = 28
+ADDR_XL320_D_GAIN              = 27
+ADDR_XL320_PUNCH               = 51
 ADDR_XL320_MOVING_SPEED        = 32
 ADDR_XL320_GOAL_POSITION       = 30
 ADDR_XL320_PRESENT_POSITION    = 37
@@ -130,6 +135,15 @@ class Servo:
         else:
             return -1
 
+    def getGoalPosition(self,servoName):
+        if not self.isConnected(): return -1
+        position, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_GOAL_POSITION)
+        # posDeg = round(position * (MAX_POSITION_DEG/MAXIMUM_POSITION_VALUE),1)
+        if(comm_result == COMM_SUCCESS):
+            return position
+        else:
+            return -1
+
     def getTorque(self,servoName):
         if not self.isConnected(): return -1
         torque, comm_result, dxl_error = self.packetHandler.read2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE)
@@ -160,17 +174,48 @@ class Servo:
 # getTemp
 
     def isMoving(self,servoName):
-        return False
+        if not self.isConnected(): return -1
+        moving, comm_result, dxl_error = self.packetHandler.read1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_IS_MOVING)
+        if(comm_result == COMM_SUCCESS):
+            return moving
+        else:
+            return -1
+
+    def isEnabled(self,servoName):
+        if not self.isConnected(): return -1
+        torqueEnabled , comm_result, dxl_error = self.packetHandler.read1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_ENABLE)
+        if(comm_result == COMM_SUCCESS):
+            return torqueEnabled
+        else:
+            return -1
+
 
     def enableServo(self,servoName):
         if not self.isConnected(): return -1
-        return self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_ENABLE,1)
+        res, com_res = self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_ENABLE,1)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def disableServo(self,servoName):
+        if not self.isConnected(): return -1
+        res, com_res = self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_ENABLE,0)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
 
     def setSpeed(self,servoName,Speed):
         if not self.isConnected(): return -1
         speed = int(Speed)
         if(speed < 0 or speed > 1023) : speed = 0
-        return self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_MOVING_SPEED,speed)
+        res, com_res = self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_MOVING_SPEED,speed)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
 
     def setPosition(self,servoName,Position):
         if not self.isConnected(): return -1
@@ -178,7 +223,61 @@ class Servo:
         if(Position > MAX_POSITION_VALUE): Position = MAX_POSITION_VALUE
         # pos = round(Position * MAXIMUM_POSITION_VALUE / MAX_POSITION_DEG)
         print("Moving Servo %s to Position %d°(%d)"%(servoName,Position,Position))
-        return self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_GOAL_POSITION,Position)
+        res, com_res = self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_GOAL_POSITION,Position)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def setTorque(self,servoName,val):
+        if not self.isConnected(): return -1
+        if(val > 1023): val = 1023
+        if(val < 0): val = 0
+        res, com_res =  self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_TORQUE_LIMIT,val)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def setPGain(self,servoName,val):
+        if not self.isConnected(): return -1
+        if(val > 254): val = 254
+        if(val < 0): val = 0
+        res, com_res =  self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_P_GAIN,val)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def setIGain(self,servoName,val):
+        if not self.isConnected(): return -1
+        if(val > 254): val = 254
+        if(val < 0): val = 0
+        res, com_res =  self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_I_GAIN,val)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def setDGain(self,servoName,val):
+        if not self.isConnected(): return -1
+        if(val > 254): val = 254
+        if(val < 0): val = 0
+        res, com_res =  self.packetHandler.write1ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_D_GAIN,val)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
+
+    def setPunch(self,servoName,val):
+        if not self.isConnected(): return -1
+        if(val > 1023): val = 1023
+        if(val < 0): val = 0
+        res, com_res =  self.packetHandler.write2ByteTxRx(self.portHandler, self.servoList[servoName]['ID'], ADDR_XL320_PUNCH,val)
+        if(com_res == COMM_SUCCESS):
+            return 1
+        else:
+            return -1
 
 MIN_POSITION_VALUE      = 0               # Dynamixel will rotate between this value
 MAX_POSITION_VALUE      = 1023            # and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
