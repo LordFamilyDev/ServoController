@@ -20,61 +20,75 @@
 # Author: Ryu Woon Jung (Leon)
 
 import time
-import serial
 import sys
-import platform
+#import platform
 import socket
 
 LATENCY_TIMER = 16
-DEFAULT_BAUDRATE = 1000000
+
+SOCKET_TIMEOUT    = .100
 
 
-class PortHandler(object):
-    def __init__(self, port_name, port):
+class TCPPortHandler(object):
+    def __init__(self, port):
         self.is_open = False
-        self.baudrate = DEFAULT_BAUDRATE
-        self.packet_start_time = 0.0
         self.packet_timeout = 0.0
         self.tx_time_per_byte = 0.0
 
         self.is_using = False
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port_name = port_name
+        self.socket = None
         self.port = port
 
+
     def openPort(self):
-        self.socket.connect((self.port_name,self.port))
-        self.is_open = True
-        return True
+        print("Opening ",self.port)
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(SOCKET_TIMEOUT)
+            self.socket.connect(self.port)
+            self.is_open = True
+            return True
+        except Exception as e:
+            print ("Port Open Failed with Exception: %s"%(e))
+            del self.socket
+            self.socket = None
+            self.is_open = False
 
     def closePort(self):
-        self.socket.close()
+        if(self.is_open):
+            self.socket.close()
+            del self.socket
+            self.socket = None
         self.is_open = False
 
-    def clearPort(self):
-        pass
-
-    def setPortName(self, port_name):
-        self.port_name = port_name
-
-    def getPortName(self):
-        return self.port_name
-
-    def setBaudRate(self, baudrate):
-        self.baudrate = baudrate
-        return True
-
-    def getBaudRate(self):
-        return self.baudrate
-
-    # def getBytesAvailable(self):
-    #     return self.ser.in_waiting
-
     def readPort(self, length):
-        return self.socket.recv(length)
+        if(not self.is_open):
+            return ""
+        try:
+            return self.socket.recv(length)
+        except Exception as ex:
+            #print("Reading...")
+            #print(ex)
+            # self.closePort()
+            return ""
 
     def writePort(self, packet):
-        return self.socket.send(bytes(packet))
+        if(not self.is_open):
+            return 0
+        try:
+            return self.socket.send(bytes(packet))
+        except Exception as ex:
+            print(ex)
+            return 0
+
+    def clearPort(self):
+        # timeout = self.socket.gettimeout()
+        # try:
+        #     self.socket.settimeout(0)
+        #     self.socket.recv(1024)
+        # finally:
+        #     self.socket.settimeout(timeout)
+        pass
 
     def setPacketTimeout(self, packet_length):
         self.packet_start_time = self.getCurrentTime()
@@ -100,22 +114,4 @@ class PortHandler(object):
             self.packet_start_time = self.getCurrentTime()
 
         return time_since
-
-    def setupPort(self, cflag_baud):
-        if self.is_open:
-            self.closePort()
-
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        self.is_open = True
-
-        self.tx_time_per_byte = (1000.0 / self.baudrate) * 10.0
-
-        return True
-
-    def getCFlagBaud(self, baudrate):
-        if baudrate in [9600, 19200, 38400, 57600, 115200, 230400, 460800, 500000, 576000, 921600, 1000000, 1152000,
-                        2000000, 2500000, 3000000, 3500000, 4000000]:
-            return baudrate
-        else:
-            return -1            
+        
